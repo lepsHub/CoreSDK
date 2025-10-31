@@ -2,6 +2,8 @@ name: Cut Release
 
 on:
   push:
+    branches: ["**"]  # todas las ramas
+    tags: ["*"] 
   workflow_dispatch:
     inputs:
       cut:
