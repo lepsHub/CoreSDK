@@ -1,0 +1,283 @@
+name: Public Release
+
+on:
+  push:
+    tags:
+      - 'TruvideoSdk-*'
+      - 'TruvideoSdkCamera-*'
+
+permissions:
+  contents: read
+
+jobs:
+  public_release:
+    runs-on: macos-15
+    env:
+      EXT_REPO_CORE:  Truvideo/truvideo-sdk-ios-core
+      EXT_REPO_CAM:   Truvideo/truvideo-sdk-ios-camera
+      PATH_CAM:  'Libraries/Plugins/Camera/'
+      PATH_CORE: 'Libraries/External/Extended/App/'
+      GH_TOKEN: ${{ secrets.GH_EXTERNAL_PAT }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Tooling
+        run: |
+          brew update >/dev/null
+          brew install jq xcodegen >/dev/null || true
+          git config user.name "truvideo[bot]"
+          git config user.email "truvideo[bot]@users.noreply.github.com"
+          gh auth setup-git
+
+      - name: Parse tag
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          frameworks=(
+            "TruvideoSdkCamera:camera:${{ env.PATH_CAM }}:${{ env.EXT_REPO_CAM }}:TruvideoSdkCamera"
+            "TruvideoSdk:core:${{ env.PATH_CORE }}:${{ env.EXT_REPO_CORE }}:TruvideoSdk"
+          )
+          
+          sdk=""
+          prefix=""
+          path=""
+          ext_repo=""
+          scheme=""
+          
+          for framework in "${frameworks[@]}"; do
+            IFS=':' read -r fw_prefix fw_sdk fw_path fw_ext_repo fw_scheme <<< "$framework"
+            if [[ "$tag" == ${fw_prefix}-* ]]; then
+              sdk="$fw_sdk"
+              prefix="$fw_prefix"
+              path="$fw_path"
+              ext_repo="$fw_ext_repo"
+              scheme="$fw_scheme"
+              break
+            fi
+          done
+
+          if [ -z "$sdk" ]; then
+            echo "Error: No framework configuration found for tag '$tag'"
+            echo "Available prefixes: $(printf '%s ' "${frameworks[@]}" | cut -d: -f1)"
+            exit 1
+          fi
+
+          base="${tag#${prefix}-}"
+          channel="PROD"
+          [[ "$base" =~ -BETA\.([0-9]+)$ ]] && channel="BETA"
+          [[ "$base" =~ -RC\.([0-9]+)$   ]] && channel="RC"
+
+          short="$base"; short="${short%-BETA.*}"; short="${short%-RC.*}"
+
+          echo "sdk=$sdk"           >> "$GITHUB_OUTPUT"
+          echo "prefix=$prefix"     >> "$GITHUB_OUTPUT"
+          echo "path=$path"         >> "$GITHUB_OUTPUT"
+          echo "ext_repo=$ext_repo" >> "$GITHUB_OUTPUT"
+          echo "scheme=$scheme"     >> "$GITHUB_OUTPUT"
+          echo "channel=$channel"   >> "$GITHUB_OUTPUT"
+          echo "version=$base"      >> "$GITHUB_OUTPUT"
+          echo "shortver=$short"    >> "$GITHUB_OUTPUT"
+          echo "today=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Build XCFramework
+        id: build
+        shell: bash
+        run: |
+          set -euo pipefail
+          make genbuild
+          proj=$(ls -1 *.xcodeproj 2>/dev/null | head -n1 || true)
+          [ -n "$proj" ] || { echo "No .xcodeproj found"; exit 1; }
+
+          dd="$RUNNER_TEMP/DerivedData"
+          xcodebuild -project "$proj" -scheme "${{ steps.meta.outputs.scheme }}" -configuration Release -destination 'generic/platform=iOS'            -derivedDataPath "$dd" BUILD_LIBRARY_FOR_DISTRIBUTION=YES SKIP_INSTALL=NO clean build
+          xcodebuild -project "$proj" -scheme "${{ steps.meta.outputs.scheme }}" -configuration Release -destination 'generic/platform=iOS Simulator' -derivedDataPath "$dd" BUILD_LIBRARY_FOR_DISTRIBUTION=YES SKIP_INSTALL=NO clean build
+
+          outdir="$RUNNER_TEMP/xc"; mkdir -p "$outdir"
+          fw="${{ steps.meta.outputs.scheme }}.framework"
+          ios_fw="$dd/Build/Products/Release-iphoneos/$fw"
+          sim_fw="$dd/Build/Products/Release-iphonesimulator/$fw"
+          [ -d "$ios_fw" ] && [ -d "$sim_fw" ] || { echo "Frameworks not found"; exit 1; }
+
+          xcodebuild -create-xcframework -framework "$ios_fw" -framework "$sim_fw" -output "$outdir/${{ steps.meta.outputs.scheme }}.xcframework"
+          zipname="${{ steps.meta.outputs.scheme }}-${{ steps.meta.outputs.version }}.zip"
+          (cd "$outdir" && zip -r "../$zipname" "${{ steps.meta.outputs.scheme }}.xcframework" >/dev/null)
+          zip_path="$RUNNER_TEMP/$zipname"
+          checksum=$(swift package compute-checksum "$zip_path")
+          echo "zip_path=$zip_path" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$zipname"  >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+
+      - name: Build release notes (sanitized)
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          prefix="${{ steps.meta.outputs.prefix }}"
+          path="${{ steps.meta.outputs.path }}"
+
+          # Previous tag for the same SDK (any channel), excluding current one
+          prev_tag="$(git tag -l "${prefix}-*" --sort=-creatordate | grep -v -F "$tag" | head -n1 || true)"
+          since_ref=""; [ -n "$prev_tag" ] && since_ref="$(git rev-list -n1 "$prev_tag")"
+          range="${since_ref:+${since_ref}..}${tag}"
+
+          sanitize() {
+            sed -E \
+              -e 's/\[[^][]*\]\([^()]*\)//g' \      # [text](url)
+              -e 's/\[[^][]*\]//g' \                # [text]
+              -e 's/\b[A-Z]{2,}-[A-Za-z0-9]+\b//g' \# tickets like SDK-1234 (and variants)
+              -e 's/ ?\(#?[0-9]+\)//g' \            # (#123)
+              -e 's/  +/ /g' \
+              -e 's/^ *-? *//g' \
+              -e 's/ *$//g'
+          }
+
+          add_lines() {
+            local heading="$1" content="$2"
+            if [ -n "$content" ]; then
+              printf '\n### %s\n%s\n' "$heading" "$content"
+            fi
+          }
+
+          feats="" fixes="" perfs="" refacs="" docs="" tests="" build="" ci="" chores="" breaks=""
+
+          while IFS= read -r s; do
+            [ -z "$s" ] && continue
+            clean="$(printf '%s' "$s" | sanitize)"
+            [ -z "$clean" ] && continue
+
+            if   [[ "$clean" =~ ^feat(\(|:|!) ]];      then feats+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^fix(\(|:|!) ]];       then fixes+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^perf(\(|:|!) ]];      then perfs+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^refactor(\(|:|!) ]];  then refacs+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^docs(\(|:|!) ]];      then docs+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^test(\(|:|!) ]];      then tests+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^build(\(|:|!) ]];     then build+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^ci(\(|:|!) ]];        then ci+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^chore(\(|:|!) ]];     then chores+=$'\n- '"$clean"
+            fi
+
+            [[ "$s" =~ BREAKING\ CHANGE|!\: ]] && breaks+=$'\n- '"$clean"
+          done < <(git log --pretty=format:'%s' $range -- "$path" || true)
+
+          notes=""
+          if [ -n "$breaks$feats$fixes$perfs$refacs$docs$tests$build$ci$chores" ]; then
+            notes="## Changes"
+            notes+="$(add_lines '⚠️ Breaking Changes' "$breaks")"
+            notes+="$(add_lines '✨ Features' "$feats")"
+            notes+="$(add_lines '🐛 Fixes' "$fixes")"
+            notes+="$(add_lines '🚀 Performance' "$perfs")"
+            notes+="$(add_lines '🧹 Refactors' "$refacs")"
+            notes+="$(add_lines '📝 Docs' "$docs")"
+            notes+="$(add_lines '✅ Tests' "$tests")"
+            notes+="$(add_lines '🧱 Build' "$build")"
+            notes+="$(add_lines '⚙️ CI' "$ci")"
+            notes+="$(add_lines '🧰 Chore' "$chores")"
+          fi
+
+          echo "prev_tag=${prev_tag}"               >> "$GITHUB_OUTPUT"
+          printf 'notes<<__EOF__\n%b\n__EOF__\n' "${notes}" >> "$GITHUB_OUTPUT"
+
+      - name: Create external release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          prev="${{ steps.notes.outputs.prev_tag }}"
+          notes="${{ steps.notes.outputs.notes }}"
+
+          body="Internal tag: \`${tag}\`"
+          body+="\nSwiftPM checksum: \`${{ steps.build.outputs.checksum }}\`"
+          if [ -n "$notes" ]; then
+            if [ -n "$prev" ]; then
+              body+="\n\n_Since ${prev}_"
+            fi
+            body+="\n\n${notes}"
+          fi
+
+          if [ "${{ steps.meta.outputs.channel }}" = "PROD" ]; then
+            gh release create "$tag" \
+              -R "${{ steps.meta.outputs.ext_repo }}" \
+              -t "$tag" \
+              -n "$body" \
+              "${{ steps.build.outputs.zip_path }}#${{ steps.build.outputs.zip_name }}"
+          else
+            gh release create "$tag" \
+              -R "${{ steps.meta.outputs.ext_repo }}" \
+              -t "$tag" \
+              -n "$body" \
+              --prerelease \
+              "${{ steps.build.outputs.zip_path }}#${{ steps.build.outputs.zip_name }}"
+          fi
+
+      - name: Update CHANGELOG.md (prod only)
+        if: ${{ steps.meta.outputs.channel == 'PROD' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          last_prod="$(git tag -l '${{ steps.meta.outputs.prefix }}-*.*.*' | grep -Ev '-(BETA|RC)\.' | sort -V | tail -n1 || true)"
+          since_ref=""; [ -n "$last_prod" ] && since_ref="$(git rev-list -n1 "$last_prod")"
+          range="${since_ref:+${since_ref}..}HEAD"
+
+          sanitize() {
+            sed -E \
+              -e 's/\[[^][]*\]\([^()]*\)//g' \
+              -e 's/\[[^][]*\]//g' \
+              -e 's/\b[A-Z]{2,}-[A-Za-z0-9]+\b//g' \
+              -e 's/ ?\(#?[0-9]+\)//g' \
+              -e 's/  +/ /g' \
+              -e 's/^ *-? *//g' \
+              -e 's/ *$//g'
+          }
+
+          feats="" fixes="" perfs="" refacs="" docs="" tests="" build="" ci="" chores="" breaks=""
+          while IFS= read -r s; do
+            [ -z "$s" ] && continue
+            clean="$(printf '%s' "$s" | sanitize)"; [ -z "$clean" ] && continue
+            if   [[ "$clean" =~ ^feat(\(|:|!) ]]; then feats+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^fix(\(|:|!) ]]; then fixes+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^perf(\(|:|!) ]]; then perfs+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^refactor(\(|:|!) ]]; then refacs+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^docs(\(|:|!) ]]; then docs+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^test(\(|:|!) ]]; then tests+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^build(\(|:|!) ]]; then build+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^ci(\(|:|!) ]]; then ci+=$'\n- '"$clean"
+            elif [[ "$clean" =~ ^chore(\(|:|!) ]]; then chores+=$'\n- '"$clean"
+            fi
+            [[ "$s" =~ BREAKING\ CHANGE|!\: ]] && breaks+=$'\n- '"$clean"
+          done < <(git log --pretty=format:'%s' $range -- "${{ steps.meta.outputs.path }}" || true)
+
+          header="## Version ${{ steps.meta.outputs.shortver }} – ${{ steps.meta.outputs.today }}"
+          target=$([ "${{ steps.meta.outputs.sdk }}" = "camera" ] && echo "Camera" || echo "Core")
+          body="## Changes (${target})"
+          [ -n "$breaks" ] && body+=$'\n\n### ⚠️ Breaking Changes'"$breaks"
+          [ -n "$feats"  ] && body+=$'\n\n### ✨ Features'"$feats"
+          [ -n "$fixes"  ] && body+=$'\n\n### 🐛 Fixes'"$fixes"
+          [ -n "$perfs"  ] && body+=$'\n\n### 🚀 Performance'"$perfs"
+          [ -n "$refacs" ] && body+=$'\n\n### 🧹 Refactors'"$refacs"
+          [ -n "$docs"   ] && body+=$'\n\n### 📝 Docs'"$docs"
+          [ -n "$tests"  ] && body+=$'\n\n### ✅ Tests'"$tests"
+          [ -n "$build"  ] && body+=$'\n\n### 🧱 Build'"$build"
+          [ -n "$ci"     ] && body+=$'\n\n### ⚙️ CI'"$ci"
+          [ -n "$chores" ] && body+=$'\n\n### 🧰 Chore'"$chores"
+
+          tmpdir="$(mktemp -d)"
+          gh repo clone "${{ steps.meta.outputs.ext_repo }}" "$tmpdir" >/dev/null
+          cd "$tmpdir"
+
+          entry="$(printf '%s\n\n%s\n' "$header" "$body")"
+          if [ -f CHANGELOG.md ]; then
+            printf '%s\n\n%s' "$entry" "$(cat CHANGELOG.md)" > CHANGELOG.new && mv CHANGELOG.new CHANGELOG.md
+          else
+            printf '%s\n' "$entry" > CHANGELOG.md
+          fi
+
+          git add CHANGELOG.md
+          git commit -m "chore(release): update changelog for ${{ steps.meta.outputs.shortver }}"
+          git push origin HEAD:main
