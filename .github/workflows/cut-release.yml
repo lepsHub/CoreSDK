@@ -42,11 +42,11 @@ jobs:
       LBL_BETA: cut-beta
       LBL_RC: cut-rc
 
-      LBL_CAM: truvideoCameraSdk
-      LBL_CORE: truvideoSdk
+      LBL_CAM: CameraSDK
+      LBL_CORE: CoreSDK
 
-      TAGPFX_CAM: 'TruvideoSdkCamera'
-      TAGPFX_CORE: 'TruvideoSdk'
+      TAGPFX_CAM: 'CameraSDK'
+      TAGPFX_CORE: 'CoreSDK'
 
       CHANNEL_PLIST_KEY: 'TRVReleaseChannel'
 
@@ -119,8 +119,8 @@ jobs:
         run: |
           set -eo pipefail
           make genbuild
-          if [ -f "TruvideoSDK.xcodeproj/project.pbxproj" ]; then
-            proj="TruvideoSDK.xcodeproj"
+          if [ -f "CoreSDK.xcodeproj/project.pbxproj" ]; then
+            proj="CoreSDK.xcodeproj"
           else
             proj=$(ls -1 *.xcodeproj 2>/dev/null | head -n1 || true)
           fi
@@ -266,12 +266,12 @@ jobs:
               "cam")
                 prefix="${{ env.TAGPFX_CAM }}"
                 path="Libraries/Plugins/Camera/"
-                vdir="Sources/TruvideoSdkCamera/Generated"
+                vdir="Sources/CameraSDK/Generated"
                 ;;
               "core")
                 prefix="${{ env.TAGPFX_CORE }}"
                 path="Libraries/External/Extended/App/"
-                vdir="Sources/TruvideoSdk/Generated"
+                vdir="Sources/CoreSDK/Generated"
                 ;;
               *)
                 echo "Error: Unknown framework key '$key'"
