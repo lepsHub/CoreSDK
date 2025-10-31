@@ -22,6 +22,11 @@
 			path = CameraSDK;
 			sourceTree = "<group>";
 		};
+		8FDD45B52EB52B1300D21B60 /* Libraries */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Libraries;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +50,7 @@
 		8FDD458D2EB513D100D21B60 = {
 			isa = PBXGroup;
 			children = (
+				8FDD45B52EB52B1300D21B60 /* Libraries */,
 				8FDD45992EB513D100D21B60 /* CoreSDK */,
 				8FDD45A72EB513DB00D21B60 /* CameraSDK */,
 				8FDD45982EB513D100D21B60 /* Products */,
@@ -118,6 +124,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				8FDD45A72EB513DB00D21B60 /* CameraSDK */,
+				8FDD45B52EB52B1300D21B60 /* Libraries */,
 			);
 			name = CameraSDK;
 			packageProductDependencies = (
@@ -340,6 +347,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -373,6 +381,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -406,6 +415,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -439,6 +449,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

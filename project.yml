@@ -1,0 +1,111 @@
+name: CoreSDK
+options:
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "15.0"
+
+targets:      
+  # External Extended Schemes
+  CoreSDK:
+    type: framework
+    platform: iOS
+    sources:
+      - Libraries/External/Extended/App/Sources
+    info:
+      path: Libraries/External/Extended/App/Sources/Info.plist
+    settings:
+      BUILD_LIBRARY_FOR_DISTRIBUTION: YES
+      DEFINES_MODULE: YES
+      LD_RUNPATH_SEARCH_PATHS: $(inherited) @loader_path/Frameworks @executable_path/Frameworks
+      PRODUCT_BUNDLE_IDENTIFIER: com.demo.CoreSDK
+      PRODUCT_MODULE_NAME: CoreSDK
+      OTHER_LDFLAGS:
+        - $(inherited)
+        - -ObjC
+        - -force_load $(BUILT_PRODUCTS_DIR)/libCloudStorageKit.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libTruVideoApi.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libInternalUtilities.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libMediaUpload.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libUtilities.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libRegistry.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libTelemetry.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libNetworking.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libStorageKit.a
+        - -force_load $(BUILT_PRODUCTS_DIR)/libDI.a
+    postCompileScripts:
+      - script: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          if which swiftformat >/dev/null; then
+            swiftformat .
+          else
+            echo "warning: SwiftFormat not installed, download from https://github.com/nicklockwood/SwiftFormat"
+          fi
+        name: SwiftFormat
+        basedOnDependencyAnalysis: false
+      - script: |
+          if [ -f /opt/homebrew/bin/swiftlint ]; then
+            /opt/homebrew/bin/swiftlint
+          elif [ -f /usr/local/bin/swiftlint ]; then
+            /usr/local/bin/swiftlint
+          elif which swiftlint > /dev/null; then
+            swiftlint
+          else
+            echo "warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint"
+          fi
+        name: SwiftLint
+        basedOnDependencyAnalysis: false
+
+  # Plugins Schemes
+  CameraSDK:
+    type: framework
+    platform: iOS
+    sources:
+      - Libraries/Plugins/Camera/Sources
+    dependencies:
+        - target: CoreSDK        
+    info:
+      path: Libraries/Plugins/Camera/Sources/Info.plist
+    settings:
+      BUILD_LIBRARY_FOR_DISTRIBUTION: YES
+      DEFINES_MODULE: YES
+      LD_RUNPATH_SEARCH_PATHS: $(inherited) @loader_path/Frameworks @executable_path/Frameworks
+      PRODUCT_BUNDLE_IDENTIFIER: com.demo.CameraSDK
+      PRODUCT_MODULE_NAME: CameraSDK
+      OTHER_LDFLAGS:
+        - $(inherited)
+        - -ObjC
+    postCompileScripts:
+      - script: |
+          export PATH="/opt/homebrew/bin:$PATH"
+          if which swiftformat >/dev/null; then
+            swiftformat .
+          else
+            echo "warning: SwiftFormat not installed, download from https://github.com/nicklockwood/SwiftFormat"
+          fi
+        name: SwiftFormat
+        basedOnDependencyAnalysis: false
+      - script: |
+          if [ -f /opt/homebrew/bin/swiftlint ]; then
+            /opt/homebrew/bin/swiftlint
+          elif [ -f /usr/local/bin/swiftlint ]; then
+            /usr/local/bin/swiftlint
+          elif which swiftlint > /dev/null; then
+            swiftlint
+          else
+            echo "warning: SwiftLint not installed, download from https://github.com/realm/SwiftLint"
+          fi
+        name: SwiftLint
+        basedOnDependencyAnalysis: false
+
+schemes:
+  # External Extended Schemes
+  CoreSDK:
+    build:
+      targets:
+        CoreSDK: all
+        
+  # Plugins Schemes
+  CameraSDK:
+    build:
+      targets:
+        CameraSDK: all
