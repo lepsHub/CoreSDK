@@ -3,8 +3,8 @@ name: Public Release
 on:
   push:
     tags:
-      - 'TruvideoSdk-*'
-      - 'TruvideoSdkCamera-*'
+      - 'CoreSDK-*'
+      - 'CameraSDK-*'
 
 permissions:
   contents: read
@@ -13,8 +13,8 @@ jobs:
   public_release:
     runs-on: macos-15
     env:
-      EXT_REPO_CORE:  Truvideo/truvideo-sdk-ios-core
-      EXT_REPO_CAM:   Truvideo/truvideo-sdk-ios-camera
+      EXT_REPO_CORE:  CoreSDK
+      EXT_REPO_CAM:   CameraSDK
       PATH_CAM:  'Libraries/Plugins/Camera/'
       PATH_CORE: 'Libraries/External/Extended/App/'
       GH_TOKEN: ${{ secrets.GH_EXTERNAL_PAT }}
@@ -29,8 +29,8 @@ jobs:
         run: |
           brew update >/dev/null
           brew install jq xcodegen >/dev/null || true
-          git config user.name "truvideo[bot]"
-          git config user.email "truvideo[bot]@users.noreply.github.com"
+          git config user.name "luis[bot]"
+          git config user.email "luis[bot]@users.noreply.github.com"
           gh auth setup-git
 
       - name: Parse tag
@@ -40,8 +40,8 @@ jobs:
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
           frameworks=(
-            "TruvideoSdkCamera:camera:${{ env.PATH_CAM }}:${{ env.EXT_REPO_CAM }}:TruvideoSdkCamera"
-            "TruvideoSdk:core:${{ env.PATH_CORE }}:${{ env.EXT_REPO_CORE }}:TruvideoSdk"
+            "CameraSDK:camera:${{ env.PATH_CAM }}:${{ env.EXT_REPO_CAM }}:TruvideoSdkCamera"
+            "CoreSDK:core:${{ env.PATH_CORE }}:${{ env.EXT_REPO_CORE }}:TruvideoSdk"
           )
           
           sdk=""
