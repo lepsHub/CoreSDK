@@ -1,10 +1,7 @@
 name: Cut Release
 
 on:
-  pull_request:
-    types: [closed]
-    branches:
-      - 'release/*'
+  push:
   workflow_dispatch:
     inputs:
       cut:
