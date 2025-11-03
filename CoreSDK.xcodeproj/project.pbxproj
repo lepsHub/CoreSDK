@@ -11,19 +11,30 @@
 		8FDD45A62EB513DB00D21B60 /* CameraSDK.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = CameraSDK.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8FDD45C72EB94BA800D21B60 /* Exceptions for "Libraries" folder in "CoreSDK" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				External/Extended/App/Source/CoreSDK.swift,
+			);
+			target = 8FDD45962EB513D100D21B60 /* CoreSDK */;
+		};
+		8FDD45C82EB94BA800D21B60 /* Exceptions for "Libraries" folder in "CameraSDK" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				External/Extended/App/Source/CoreSDK.swift,
+			);
+			target = 8FDD45A52EB513DB00D21B60 /* CameraSDK */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		8FDD45992EB513D100D21B60 /* CoreSDK */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CoreSDK;
-			sourceTree = "<group>";
-		};
-		8FDD45A72EB513DB00D21B60 /* CameraSDK */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = CameraSDK;
-			sourceTree = "<group>";
-		};
 		8FDD45B52EB52B1300D21B60 /* Libraries */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8FDD45C72EB94BA800D21B60 /* Exceptions for "Libraries" folder in "CoreSDK" target */,
+				8FDD45C82EB94BA800D21B60 /* Exceptions for "Libraries" folder in "CameraSDK" target */,
+			);
 			path = Libraries;
 			sourceTree = "<group>";
 		};
@@ -51,8 +62,6 @@
 			isa = PBXGroup;
 			children = (
 				8FDD45B52EB52B1300D21B60 /* Libraries */,
-				8FDD45992EB513D100D21B60 /* CoreSDK */,
-				8FDD45A72EB513DB00D21B60 /* CameraSDK */,
 				8FDD45982EB513D100D21B60 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -99,9 +108,6 @@
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				8FDD45992EB513D100D21B60 /* CoreSDK */,
-			);
 			name = CoreSDK;
 			packageProductDependencies = (
 			);
@@ -123,7 +129,6 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				8FDD45A72EB513DB00D21B60 /* CameraSDK */,
 				8FDD45B52EB52B1300D21B60 /* Libraries */,
 			);
 			name = CameraSDK;
