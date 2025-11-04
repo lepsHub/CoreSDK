@@ -134,6 +134,8 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
+          set -x
+          trap 'echo "❌ Error at line $LINENO: $BASH_COMMAND"' ERR
 
           cut="${{ steps.scope.outputs.cut }}"
           dry="${{ steps.scope.outputs.dry }}"
