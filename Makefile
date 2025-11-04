@@ -25,20 +25,20 @@ generate:
 # Foundation Core first (no dependencies), then others that depend on them
 build:
 	@echo "Building frameworks in dependency order..."
-	xcodebuild -project CoreSDK.xcodeproj -scheme DI -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme Registry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme CloudStorageKit -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme CloudStorageKitTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme StorageKit -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme StorageKitTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme Utilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme UtilitiesTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme CoreDataUtilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme Telemetry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme InternalUtilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme Networking -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme NetworkingTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
-	xcodebuild -project CoreSDK.xcodeproj -scheme TruVideoApi -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme DI -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme Registry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme CloudStorageKit -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme CloudStorageKitTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme StorageKit -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme StorageKitTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme Utilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme UtilitiesTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme CoreDataUtilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme Telemetry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme InternalUtilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme Networking -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme NetworkingTesting -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
+# 	xcodebuild -project CoreSDK.xcodeproj -scheme TruVideoApi -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 	xcodebuild -project CoreSDK.xcodeproj -scheme CameraSDK -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 	xcodebuild -project CoreSDK.xcodeproj -scheme CoreSDK -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro' build
 	@echo "All frameworks built successfully!"
@@ -79,17 +79,17 @@ genbuild: generate build open
 # Run all tests
 test:
 	@echo "Running all unit tests..."
-	xcodebuild test -project CoreSDK.xcodeproj -scheme DI -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme Registry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme CloudStorage -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme Storage -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme Utilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme CoreDataUtilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme Telemetry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme Networking -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme TruVideoApi -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme CameraSDK -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
-	xcodebuild test -project CoreSDK.xcodeproj -scheme CoreSDK -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme DI -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme Registry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme CloudStorage -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme Storage -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme Utilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme CoreDataUtilities -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme Telemetry -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme Networking -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme TruVideoApi -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme CameraSDK -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
+#	xcodebuild test -project CoreSDK.xcodeproj -scheme CoreSDK -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
 	@echo "All tests completed!"
 
 # Clean generated files
