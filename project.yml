@@ -22,16 +22,16 @@ targets:
       OTHER_LDFLAGS:
         - $(inherited)
         - -ObjC
-        - -force_load $(BUILT_PRODUCTS_DIR)/libCloudStorageKit.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libTruVideoApi.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libInternalUtilities.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libMediaUpload.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libUtilities.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libRegistry.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libTelemetry.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libNetworking.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libStorageKit.a
-        - -force_load $(BUILT_PRODUCTS_DIR)/libDI.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libCloudStorageKit.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libTruVideoApi.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libInternalUtilities.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libMediaUpload.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libUtilities.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libRegistry.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libTelemetry.a
+      #c - -force_load $(BUILT_PRODUCTS_DIR)/libNetworking.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libStorageKit.a
+      #  - -force_load $(BUILT_PRODUCTS_DIR)/libDI.a
     postCompileScripts:
       - script: |
           export PATH="/opt/homebrew/bin:$PATH"
