@@ -133,7 +133,7 @@ jobs:
         if: ${{ steps.scope.outputs.cut != '' && steps.scope.outputs.aff != '' }}
         shell: bash
         run: |
-          set -eo pipefail
+          set -euo pipefail
           set -x
           trap 'echo "❌ Error at line $LINENO: $BASH_COMMAND"' ERR
 
