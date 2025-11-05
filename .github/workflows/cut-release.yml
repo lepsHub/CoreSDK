@@ -353,7 +353,9 @@ jobs:
               return 0
             fi            
             git add "$path" || true
-            if [ -f "$vdir/Version.swift" ]; then git add "$vdir/Version.swift"; fi
+            if [ -f "$vdir/Version.swift" ] && ! git check-ignore -q "$vdir/Version.swift"; then
+              git add "$vdir/Version.swift"
+            fi
             if ! git diff --cached --quiet; then
               git commit -m "chore(release): bump ${prefix} to ${full} (${channel})"
             fi
