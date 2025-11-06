@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           set -eo pipefail
-          labels="$(jq -r '.pull_request.labels[].name // empty' <<< "${{ toJson(github.event) }}" 2>/dev/null || true)"
+          labels=$(echo '${{ toJson(github.event) }}' | jq -r '.pull_request.labels[].name // empty' 2>/dev/null || true)
 
           # --- CUT TYPE: prod only manual; beta/rc manual or labels ---
           cut=""
