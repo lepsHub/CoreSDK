@@ -1,9 +1,10 @@
 name: Cut Release
 
 on:
-  push:
-    branches: ["**"]  # todas las ramas
-    tags: ["*"] 
+  pull_request:
+    types: [closed]
+    branches:
+      - 'release/*'
   workflow_dispatch:
     inputs:
       cut:
