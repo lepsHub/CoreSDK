@@ -15,7 +15,7 @@ jobs:
   review:
     runs-on: ubuntu-latest
     steps:
-      - name: Check required secrets
+      - name: Check required secretss
         run: |
           if [ -z "${{ secrets.LLM_API_KEY }}" ]; then
             echo "Error: LLM_API_KEY secret is not configured"
