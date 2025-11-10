@@ -6,5 +6,6 @@
 //
 
 import Foundation
+
 /// Documentation for CameraSDK
 struct CameraSDK {}
