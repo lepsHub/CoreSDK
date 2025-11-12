@@ -40,8 +40,8 @@ jobs:
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
           frameworks=(
-            "CameraSDK:camera:${{ env.PATH_CAM }}:${{ env.EXT_REPO_CAM }}:TruvideoSdkCamera"
-            "CoreSDK:core:${{ env.PATH_CORE }}:${{ env.EXT_REPO_CORE }}:TruvideoSdk"
+            "CameraSDK:camera:${{ env.PATH_CAM }}:${{ env.EXT_REPO_CAM }}:CameraSDK"
+            "CoreSDK:core:${{ env.PATH_CORE }}:${{ env.EXT_REPO_CORE }}:CoreSDK"
           )
           
           sdk=""
