@@ -362,12 +362,7 @@ jobs:
             fi
 
             git tag -a "$tag" -m "$title"
-            git push origin "refs/tags/${tag}"            
-            gh api "repos/${{ github.repository }}/releases" \
-              -f tag_name="$tag" \
-              -f name="$tag" \
-              -f body="$body" \
-              -F prerelease=$prerelease >/dev/null
+            git push origin "refs/tags/${tag}"
           }
 
           for s in ${{ steps.scope.outputs.aff }}; do
