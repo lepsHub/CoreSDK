@@ -222,6 +222,9 @@ jobs:
               [ -z "$t" ] && continue
               n="${t##*.}"
               [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max" ] && max="$n"
+              if [[ "$n" =~ ^[0-9]+$ ]]; then
+                [ "$n" -gt "$max" ] && max="$n" || true
+              fi
             done < <(
               git tag -l "${prefix}-${base}-BETA.*"
               git tag -l "${prefix}-${base}-RC.*"
@@ -372,8 +375,45 @@ jobs:
               git commit -m "chore(release): bump ${prefix} to ${full} (${channel})"
             fi
 
-            git tag -a "$tag" -m "$title"
-            git push origin "refs/tags/${tag}"
+            external_repo=""
+            external_prefixless_tag="$full"
+
+            if [ "$key" = "cam" ]; then
+              external_repo="lepsHub/PublicCameraSDK"
+            elif [ "$key" = "core" ]; then
+              external_repo="lepsHub/PublicCoreSDK"
+            fi
+
+            if [ -z "$external_repo" ]; then
+              echo "ERROR: unknown external repo for key '$key'"
+              exit 1
+            fi
+
+            echo "Creating external lightweight tag: $external_prefixless_tag on $external_repo"
+
+            # Push lightweight tag (no prefix)
+            git tag "$external_prefixless_tag"
+
+            # Push to the external repository
+            git push \
+              "https://${{ secrets.GH_EXTERNAL_PAT }}@github.com/${external_repo}.git" \
+              "refs/tags/${external_prefixless_tag}" || {
+                echo "ERROR pushing external tag"
+                exit 1
+              }
+
+            echo "Creating release on external repo: $external_repo"
+
+            gh api \
+              -X POST \
+              "repos/${external_repo}/releases" \
+              -f tag_name="$external_prefixless_tag" \
+              -f name="$external_prefixless_tag" \
+              -f body="$body" \
+              -F prerelease=$prerelease \
+              >/dev/null
+
+            echo "External release created for $external_repo"
           }
 
           for s in ${{ steps.scope.outputs.aff }}; do
