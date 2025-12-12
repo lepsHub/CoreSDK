@@ -535,8 +535,8 @@ jobs:
             # compute checksum (use swift tool if available)
             
             echo "Computing checksum..."
-            zip -r "$ZIP_NAME" "${ZIP_FILE_NAME}"
-            CHECKSUM=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
+            Cecho "Computing checksum..."
+              CHECKSUM=$(swift package compute-checksum "/tmp/${ZIP_NAME}")
             if [ -z "$CHECKSUM" ]; then
               echo "ERROR: checksum is empty. ZIP may be invalid."
               exit 1
