@@ -535,7 +535,6 @@ jobs:
             # compute checksum (use swift tool if available)
             
             echo "Computing checksum..."
-            Cecho "Computing checksum..."
               CHECKSUM=$(swift package compute-checksum "/tmp/${ZIP_NAME}")
             if [ -z "$CHECKSUM" ]; then
               echo "ERROR: checksum is empty. ZIP may be invalid."
