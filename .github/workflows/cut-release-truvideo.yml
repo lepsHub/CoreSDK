@@ -568,7 +568,7 @@ jobs:
             fi
 
             cp -R "$GITHUB_WORKSPACE/build/${POD_XC_OUTPUT}" .
-            if [ -f "../${PODSPEC_NAME}" ]; then
+            if [ -f "$GITHUB_WORKSPACE/${POD_WORKSPACE}/${PODSPEC_NAME}" ]; then
               cp "$GITHUB_WORKSPACE/${POD_WORKSPACE}/${PODSPEC_NAME}" . || true
             fi
 
