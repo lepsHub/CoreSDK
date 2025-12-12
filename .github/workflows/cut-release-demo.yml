@@ -510,7 +510,9 @@ jobs:
             xcodebuild archive -scheme "$SCHEME" -destination "generic/platform=iOS Simulator" -archivePath build/sim.xcarchive SKIP_INSTALL=NO BUILD_LIBRARY_FOR_DISTRIBUTION=YES
             xcodebuild -create-xcframework \
               -framework "build/ios.xcarchive/Products/Library/Frameworks/${SCHEME}.framework" \
+              -debug-symbols "build/ios.xcarchive/dSYMs/${SCHEME}.framework.dSYM" \
               -framework "build/sim.xcarchive/Products/Library/Frameworks/${SCHEME}.framework" \
+              -debug-symbols "build/sim.xcarchive/dSYMs/${SCHEME}.framework.dSYM" \
               -output "$XC_OUTPUT"
             set +x
 
