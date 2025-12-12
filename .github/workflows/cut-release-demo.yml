@@ -117,9 +117,6 @@ jobs:
             if grep -Fxq "${LBL_RC}" <<< "$labels"; then
               cut="rc"
             fi
-            if grep -Fxq "${LBL_PROD:-}" <<< "$labels"; then
-              cut="prod"
-            fi
           fi
 
           # ---------------------------

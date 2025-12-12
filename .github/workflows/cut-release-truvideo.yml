@@ -1,4 +1,4 @@
-name: Cut Release TruVideo
+name: Cut Release
 
 on:
   pull_request:
@@ -39,68 +39,147 @@ jobs:
     runs-on: macos-15
 
     env:
-      # Labels
       LBL_BETA: cut-beta
       LBL_RC: cut-rc
-      LBL_PROD: cut-prod
-      LBL_CAM: CameraSDK
-      LBL_CORE: CoreSDK
 
-      # Tag prefixes
-      TAGPFX_CAM: 'CameraSDK'
-      TAGPFX_CORE: 'CoreSDK'
+      LBL_CAM: truvideoCameraSdk
+      LBL_CORE: truvideoSdk
+
+      TAGPFX_CAM: 'TruvideoSdkCamera'
+      TAGPFX_CORE: 'TruvideoSdk'
 
       CHANNEL_PLIST_KEY: 'TRVReleaseChannel'
 
-      # tokens (must be provided in repo secrets)
-      GH_EXTERNAL_PAT: ${{ secrets.GH_EXTERNAL_PAT }}
-      COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+      GH_TOKEN: ${{ secrets.GH_EXTERNAL_PAT }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_EXTERNAL_PAT }}
 
-      - name: Install tooling
+      - name: Tooling / Git identity
         run: |
-          brew update >/dev/null || true
+          brew update >/dev/null
           brew install jq xcodegen >/dev/null || true
+          git config user.name  "truvideo[bot]"
+          git config user.email "truvideo[bot]@users.noreply.github.com"
 
-      - name: Resolve scope (cut + aff)
+      - name: Resolve cut type and frameworks (manual > labels > paths)
         id: scope
-        env:
-          GITHUB_EVENT_PATH: ${{ github.event_path }}
-          EV_NAME: ${{ github.event_name }}
-          EV_CUT: ${{ github.event.inputs.cut }}
-          EV_FW: ${{ github.event.inputs.frameworks }}
-          EV_DRY: ${{ github.event.inputs.dry_run }}
-          LBL_BETA: ${{ env.LBL_BETA }}
-          LBL_RC: ${{ env.LBL_RC }}
-          LBL_PROD: ${{ env.LBL_PROD }}
-          LBL_CAM: ${{ env.LBL_CAM }}
-          LBL_CORE: ${{ env.LBL_CORE }}
-        run: |
-          mkdir -p .github/scripts
-          chmod +x .github/scripts/*.sh
-          curl -sSfL https://raw.githubusercontent.com/Truvideo/truvideo-ios-sdk/main/.github/scripts/resolve_scope.sh -o .github/scripts/resolve_scope.sh || true
-          # fallback to local script if present
-          if [ -f "./scripts/resolve_scope.sh" ]; then
-            ./scripts/resolve_scope.sh
-          else
-            bash .github/scripts/resolve_scope.sh
-          fi
         shell: bash
-
-      - name: Prepare environment for subsequent steps
-        if: ${{ steps.scope.outputs.should_run == 'true' }}
-        run: echo "Scope OK, continuing"
-
-      - name: Generate Xcode project
-        if: ${{ steps.scope.outputs.should_run == 'true' && steps.scope.outputs.aff != '' }}
         run: |
           set -eo pipefail
+
+          # Use runtime env and the event JSON rather than YAML expansions
+          EVENT_FILE="${GITHUB_EVENT_PATH:-}"
+          EVENT_NAME="${GITHUB_EVENT_NAME:-}"
+
+          # Extract labels safely (one per line); only when PR event has labels
+          labels=""
+          if [ -n "$EVENT_FILE" ]; then
+            labels="$(jq -r '.pull_request.labels[].name // empty' "$EVENT_FILE" 2>/dev/null | sed '/^\s*$/d' || true)"
+          fi
+
+          # Trim safely removing double spaces, leading/trailing
+          safe_trim() {
+            printf "%s" "$1" \
+              | tr '\t' ' ' \
+              | tr -s ' ' \
+              | sed 's/^ *//; s/ *$//'
+          }
+
+          # Ensure aff has valid values only
+          sanitize_aff() {
+            case "$1" in
+              cam) echo "cam" ;;
+              core) echo "core" ;;
+              "cam core"|"core cam") echo "cam core" ;;
+              *) echo "" ;;
+            esac
+          }
+
+          # ---------------------------
+          # CUT TYPE
+          # ---------------------------
+          cut=""
+
+          # read inputs safely from event json if workflow_dispatch
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$EVENT_FILE" ]; then
+            cut="$(jq -r '.inputs.cut // empty' "$EVENT_FILE" 2>/dev/null || true)"
+          fi
+
+          if [ -z "$cut" ]; then
+            # fallback to labels
+            if grep -Fxq "${LBL_BETA}" <<< "$labels"; then
+              cut="beta"
+            fi
+            if grep -Fxq "${LBL_RC}" <<< "$labels"; then
+              cut="rc"
+            fi
+          fi
+
+          # ---------------------------
+          # FRAMEWORKS (AFF)
+          # ---------------------------
+          allow=""
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$EVENT_FILE" ]; then
+            frameworks="$(jq -r '.inputs.frameworks // empty' "$EVENT_FILE" 2>/dev/null || true)"
+            case "$frameworks" in
+              camera) allow="cam" ;;
+              core) allow="core" ;;
+              all) allow="cam core" ;;
+            esac
+          else
+            if grep -Fxq "${LBL_CAM}" <<< "$labels"; then
+              allow="$allow cam"
+            fi
+            if grep -Fxq "${LBL_CORE}" <<< "$labels"; then
+              allow="$allow core"
+            fi
+          fi
+
+          allow="$(safe_trim "$allow")"
+          final="$(sanitize_aff "$allow")"
+
+          # dry run input (safe read)
+          dry="false"
+          if [ -n "$EVENT_FILE" ]; then
+            dry="$(jq -r '.inputs.dry_run // "false"' "$EVENT_FILE" 2>/dev/null || true)"
+          fi
+
+          # Export outputs for other steps (GitHub outputs + file in workspace)
+          echo "cut=$cut" >> "$GITHUB_OUTPUT"
+          echo "aff=$final" >> "$GITHUB_OUTPUT"
+          echo "dry=$dry" >> "$GITHUB_OUTPUT"
+
+          # Also persist to a file so subsequent steps can source it without YAML interpolation
+          SCOPE_FILE="$GITHUB_WORKSPACE/.cut_release_scope"
+          # printf 'CUT=%s\nAFF=%s\nDRY=%s\n' "$cut" "$final" "$dry" > "$SCOPE_FILE"
+          echo "CUT=$cut" > "$SCOPE_FILE"
+          echo "AFF=\"$final\"" >> "$SCOPE_FILE"
+          echo "DRY=$dry" >> "$SCOPE_FILE"
+          echo "Wrote scope to $SCOPE_FILE"
+      - name: Reset SwiftPM caches
+        run: |
+            rm -rf ~/Library/Caches/org.swift.swiftpm
+
+      - name: Generate Xcode project
+        run: |
+          set -eo pipefail
+          # load scope vars produced by the previous step
+          SCOPE_FILE="$GITHUB_WORKSPACE/.cut_release_scope"
+          if [ ! -f "$SCOPE_FILE" ]; then
+            echo "Scope file not found; exiting (nothing to cut)."
+            exit 0
+          fi
+          # shellcheck source=/dev/null
+          source "$SCOPE_FILE"
+          if [ -z "${AFF:-}" ]; then
+            echo "AFF is empty; skipping generate Xcode project."
+            exit 0
+          fi
+
           make genbuild
           if [ -f "TruvideoSDK.xcodeproj/project.pbxproj" ]; then
             proj="TruvideoSDK.xcodeproj"
@@ -113,38 +192,537 @@ jobs:
           echo "PROJECT=$proj" >> $GITHUB_ENV
           echo "Using PROJECT=$proj"
 
-      - name: Compute versions, build, tag & release
-        if: ${{ steps.scope.outputs.should_run == 'true' }}
+      - name: Compute versions, update Info.plist, generate Version.swift, tag & release
+        shell: bash
         env:
+          # safe small expressions only
           GH_TOKEN: ${{ secrets.GH_EXTERNAL_PAT }}
           COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
-          CHANNEL_PLIST_KEY: ${{ env.CHANNEL_PLIST_KEY }}
-          TAGPFX_CAM: ${{ env.TAGPFX_CAM }}
-          TAGPFX_CORE: ${{ env.TAGPFX_CORE }}
-          GITHUB_WORKSPACE: ${{ github.workspace }}
-          CUT: ${{ steps.scope.outputs.cut }}
-          AFF: ${{ steps.scope.outputs.aff }}
-          DRY: ${{ steps.scope.outputs.dry }}
         run: |
           set -eo pipefail
-          mkdir -p .github/scripts
-          chmod +x .github/scripts/*.sh
-          # Truvideo/truvideo-ios-sdk
-          curl -sSfL https://raw.githubusercontent.com/Truvideo/truvideo-ios-sdk/main/scripts/versioning.sh -o .github/scripts/versioning.sh || true
-          curl -sSfL https://raw.githubusercontent.com/Truvideo/truvideo-ios-sdk/main/scripts/build.sh -o .github/scripts/build.sh || true
-          curl -sSfL https://raw.githubusercontent.com/Truvideo/truvideo-ios-sdk/main/scripts/releases.sh -o .github/scripts/releases.sh || true
-          curl -sSfL https://raw.githubusercontent.com/Truvideo/truvideo-ios-sdk/main/scripts/publish_package_repos.sh -o .github/scripts/publish_package_repos.sh || true
+          trap 'ret=$?; echo "ERROR: command failed with exit $ret: ${BASH_COMMAND} at line ${LINENO}"; exit $ret' ERR
 
-          # prefer local scripts if present
-          if [ -f "./scripts/versioning.sh" ]; then
-            ./scripts/versioning.sh
-            ./scripts/build.sh
-            ./scripts/releases.sh
-            ./scripts/publish_package_repos.sh
-          else
-            bash .github/scripts/versioning.sh
-            bash .github/scripts/build.sh
-            bash .github/scripts/releases.sh
-            bash .github/scripts/publish_package_repos.sh
+
+          # load scope vars produced by the scope step
+          SCOPE_FILE="$GITHUB_WORKSPACE/.cut_release_scope"
+          if [ ! -f "$SCOPE_FILE" ]; then
+            echo "Scope file not found; exiting (nothing to cut)."
+            exit 0
           fi
-        shell: bash
+          # shellcheck source=/dev/null
+          source "$SCOPE_FILE"
+
+          # Only continue if both CUT and AFF are set
+          if [ -z "${CUT:-}" ] || [ -z "${AFF:-}" ]; then
+            echo "CUT or AFF empty; nothing to do."
+            exit 0
+          fi
+
+          cut="$CUT"
+          dry="$DRY"
+
+          find_plists () { git ls-files "$1" | grep -E '/Info\.plist$' || true; }
+          read_short_ver () { /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$1" 2>/dev/null || true; }
+          write_short_ver () { /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $2" "$1" || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $2" "$1"; }
+          write_build_num () { /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $2" "$1" || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $2" "$1"; }
+          write_channel_key () {
+            local plist="$1" val="$2" key="${CHANNEL_PLIST_KEY}"
+            /usr/libexec/PlistBuddy -c "Set :$key $val" "$plist" \
+              || /usr/libexec/PlistBuddy -c "Add :$key string $val" "$plist"
+          }
+
+          bump_from_commits () {
+            local last_prod="$1" range="$2" bump="patch"
+            if git log --format=%B $range | grep -Eq 'BREAKING CHANGE|!:'; then bump="major"
+            elif git log --format=%s $range | grep -Eq '^feat(\(|:)|^feat!'; then bump="minor"
+            elif git log --format=%s $range | grep -Eq '^fix(\(|:)|^fix!|^perf(\(|:)|^perf!'; then bump="patch"
+            else bump="patch"; fi
+            if [ -z "$last_prod" ]; then echo "0.1.0"; return; fi
+            base="${last_prod##*-}"
+            IFS='.' read -r major minor patch <<< "$base"
+            case "$bump" in
+              major) major=$((major+1)); minor=0; patch=0 ;;
+              minor) minor=$((minor+1)); patch=0 ;;
+              patch) patch=$((patch+1)) ;;
+            esac
+            echo "${major}.${minor}.${patch}"
+            echo "[DEBUG bump] last_prod=$1" >&2
+            echo "[DEBUG bump] range=$2" >&2
+            git log --format='%h %s' $2 >&2
+          }
+
+          # (functions next_beta_n, last_beta_n, next_rc_n, etc. unchanged)
+          next_beta_n () {
+            local prefix="$1" base="$2" max=0
+            while read -r t; do [ -z "$t" ] && continue
+              n="${t##*.}"; [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max" ] && max="$n" || true
+            done < <(git tag -l "${prefix}-${base}-BETA.*")
+            echo $((max+1))
+          }
+
+          last_beta_n () {
+            local prefix="$1" base="$2" max=0
+            while read -r t; do [ -z "$t" ] && continue
+              n="${t##*.}"; [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max" ] && max="$n" || true
+            done < <(git tag -l "${prefix}-${base}-BETA.*")
+            echo "$max"
+          }
+
+          next_rc_n () {
+            local prefix="$1" base="$2" max=0
+            while read -r t; do [ -z "$t" ] && continue
+              n="${t##*.}"; [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max" ] && max="$n" || true
+            done < <(git tag -l "${prefix}-${base}-RC.*")
+            echo $((max+1))
+          }
+
+          last_rc_n () {
+            local prefix="$1" base="$2" max=0
+            while read -r t; do [ -z "$t" ] && continue
+              n="${t##*.}"; [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max" ] && max="$n" || true
+            done < <(git tag -l "${prefix}-${base}-RC.*")
+            echo "$max"
+          }
+
+          rc_build_for_base () {
+            local prefix="$1" base="$2"
+            local bmax rmax
+            bmax="$(last_beta_n "$prefix" "$base")"
+            rmax="$(last_rc_n  "$prefix" "$base")"
+            [ "$bmax" -ge "$rmax" ] && echo $((bmax + 1)) || echo $((rmax + 1))
+          }
+
+          latest_build_for_base () {
+            local prefix="$1" base="$2" max=0
+            while read -r t; do [ -z "$t" ] && continue
+              n="${t##*.}"; [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max" ] && max="$n" || true
+            done < <( { git tag -l "${prefix}-${base}-BETA.*"; git tag -l "${prefix}-${base}-RC.*"; } )
+            echo "$max"
+          }
+
+          next_global_build_number() {
+            local prefix="$1" base="$2" max=0
+            while read -r t; do
+              [ -z "$t" ] && continue
+              n="${t##*.}"
+              [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -gt "$max" ] && max="$n"
+              if [[ "$n" =~ ^[0-9]+$ ]]; then
+                [ "$n" -gt "$max" ] && max="$n" || true
+              fi
+            done < <(
+              git tag -l "${prefix}-${base}-BETA.*"
+              git tag -l "${prefix}-${base}-RC.*"
+            )
+            echo $((max + 1))
+          }
+
+          gen_version_swift () {
+            local destdir="$1" full="$2" channel="$3" build="$4"
+            mkdir -p "$destdir"
+            cat > "$destdir/Version.swift" <<SWIFT
+          // Generated by CI – do not edit.
+          public let SDKVersionNumber: String = "$full"
+          public let SDKEnvironment:   String = "$channel"
+          public let SDKBuildNumber:   String = "$build"
+          SWIFT
+          }
+
+          gen_changelog_md () {
+            local range="$1" path="$2"
+            local feats="" fixes="" perfs="" refacs="" docs="" tests="" build="" ci="" chores="" breaks=""
+            while IFS= read -r s; do
+              [ -z "$s" ] && continue
+              [[ "$s" =~ BREAKING\ CHANGE|!\: ]] && breaks="${breaks}"$'\n- '"$s"
+              if   [[ "$s" =~ ^feat(\(|:|\!) ]];      then feats="${feats}"$'\n- '"$s"
+              elif [[ "$s" =~ ^fix(\(|:|\!) ]];       then fixes="${fixes}"$'\n- '"$s"
+              elif [[ "$s" =~ ^perf(\(|:|\!) ]];      then perfs="${perfs}"$'\n- '"$s"
+              elif [[ "$s" =~ ^refactor(\(|:|\!) ]];  then refacs="${refacs}"$'\n- '"$s"
+              elif [[ "$s" =~ ^docs(\(|:|\!) ]];      then docs="${docs}"$'\n- '"$s"
+              elif [[ "$s" =~ ^test(\(|:|\!) ]];      then tests="${tests}"$'\n- '"$s"
+              elif [[ "$s" =~ ^build(\(|:|\!) ]];     then build="${build}"$'\n- '"$s"
+              elif [[ "$s" =~ ^ci(\(|:|\!) ]];        then ci="${ci}"$'\n- '"$s"
+              elif [[ "$s" =~ ^chore(\(|:|\!) ]];     then chores="${chores}"$'\n- '"$s"
+              fi
+            done < <(git log --pretty=format:'%s' $range -- "$path" || true)
+            {
+              echo "## Changes"
+              [ -n "$breaks" ] && { echo; echo "### ⚠️ Breaking Changes"; echo "$breaks"; }
+              [ -n "$feats"  ] && { echo; echo "### ✨ Features";        echo "$feats"; }
+              [ -n "$fixes"  ] && { echo; echo "### 🐛 Fixes";           echo "$fixes"; }
+              [ -n "$perfs"  ] && { echo; echo "### 🚀 Performance";     echo "$perfs"; }
+              [ -n "$refacs" ] && { echo; echo "### 🧹 Refactors";       echo "$refacs"; }
+              [ -n "$docs"   ] && { echo; echo "### 📝 Docs";            echo "$docs"; }
+              [ -n "$tests"  ] && { echo; echo "### ✅ Tests";           echo "$tests"; }
+              [ -n "$build"  ] && { echo; echo "### 🧱 Build";           echo "$build"; }
+              [ -n "$ci"     ] && { echo; echo "### ⚙️ CI";              echo "$ci"; }
+              [ -n "$chores" ] && { echo; echo "### 🧰 Chore";           echo "$chores"; }
+            } | sed '/^$/N;/^\n$/D' || true
+          }
+
+          cut_for () {
+            local key="$1" cut_type="$2" prefix path vdir channel full base_ver build_num prerelease title
+
+            local ORIGINAL_DIR
+            ORIGINAL_DIR="$(pwd)"
+
+            case "$key" in
+              "cam")
+                prefix="${TAGPFX_CAM}"
+                path="Libraries/Plugins/Camera/"
+                vdir="Sources/TruvideoSdkCamera/Generated"
+                ;;
+              "core")
+                prefix="${TAGPFX_CORE}"
+                path="Libraries/External/Extended/App/"
+                vdir="Sources/TruvideoSdk/Generated"
+                ;;
+              *)
+                echo "Error: Unknown framework key '$key'"
+                echo "Available keys: cam, core"
+                exit 1
+                ;;
+            esac
+
+            # Only consider final prod tags for base version
+            last_prod=$(
+              git tag -l "${prefix}-*" --sort=-v:refname \
+              | grep -E "^${prefix}-[0-9]+\.[0-9]+\.[0-9]+$" \
+              | head -n1
+            )
+
+            since_ref=""; [ -n "$last_prod" ] && since_ref="$(git rev-list -n1 "$last_prod")"
+            range="${since_ref:+${since_ref}..}HEAD"
+
+            base_ver="$(bump_from_commits "$last_prod" "${range:-HEAD}")"
+
+            if [ "$cut_type" = "beta" ]; then
+              channel="BETA"
+              build_num="$(rc_build_for_base "$prefix" "$base_ver")"
+              full="${base_ver}-BETA.${build_num}"
+              prerelease="true"
+              title="Internal BETA release for **$prefix $base_ver**."
+            elif [ "$cut_type" = "rc" ]; then
+              channel="RC"
+              build_num="$(rc_build_for_base "$prefix" "$base_ver")"
+              full="${base_ver}-RC.${build_num}"
+              prerelease="true"
+              title="Release Candidate for **$prefix $base_ver**."
+            else
+              channel="PROD"
+              full="${base_ver}"
+              bn="$(next_global_build_number "$prefix" "$base_ver")"
+              [ "$bn" -gt 0 ] && build_num="$bn" || build_num="1"
+              prerelease="false"
+              title="Production release for **$prefix $base_ver**."
+            fi
+
+            while read -r plist; do
+              [ -z "$plist" ] && continue
+              cur_short="$(read_short_ver "$plist")"
+              if [ "$cur_short" != "$base_ver" ]; then write_short_ver "$plist" "$base_ver"; fi
+              write_build_num "$plist" "$build_num"
+              write_channel_key "$plist" "$channel"
+            done < <(find_plists "$path")
+
+            gen_version_swift "$vdir" "$full" "$channel" "$build_num"
+
+            # Changelog body (since last prod)
+            chg="$(gen_changelog_md "$range" "$path")"
+
+            body_header=$(printf '%s\n' \
+              "%TITLE%" \
+              "" \
+              "- **CFBundleShortVersionString**: %BASE%" \
+              "- **CFBundleVersion**: %BUILD%" \
+              "- **SdkVersionNumber**: %FULL%" \
+              "- **Channel**: %CHANNEL%" \
+              "" \
+              "%CHANGELOG%")
+            body="${body_header//%TITLE%/$title}"
+            body="${body//%BASE%/$base_ver}"
+            body="${body//%BUILD%/$build_num}"
+            body="${body//%FULL%/$full}"
+            body="${body//%CHANNEL%/$channel}"
+            body="${body//%CHANGELOG%/$chg}"
+
+            tag="${prefix}-${full}"
+
+            if [ "$dry" = "true" ]; then
+              echo "[DRY RUN] Would tag: $tag"
+              echo "[DRY RUN] Would create release:"; echo "$body"
+              return 0
+            fi
+            git add "$path" || true
+            if [ -f "$vdir/Version.swift" ] && ! git check-ignore -q "$vdir/Version.swift"; then
+              git add "$vdir/Version.swift"
+            fi
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(release): bump ${prefix} to ${full} (${channel})"
+            fi
+
+            # --- INTERNAL TAG CREATION (MONOREPO) ---
+
+            if [ "$key" = "cam" ]; then
+              internal_tag="${TAGPFX_CAM}-${full}"
+            elif [ "$key" = "core" ]; then
+              internal_tag="${TAGPFX_CORE}-${full}"
+            fi
+            
+            if git tag -l | grep -q "^${internal_tag}$"; then
+              echo "⚠️ Internal tag '${internal_tag}' already exists. Skipping."
+            else
+              echo "➡️ Creating internal tag '${internal_tag}' in monorepo..."
+              git tag "${internal_tag}"
+              git push origin "refs/tags/${internal_tag}"
+              echo "✅ Internal monorepo tag '${internal_tag}' pushed."
+            fi
+
+            external_repo=""
+            external_prefixless_tag="$full"
+
+            if [ "$key" = "cam" ]; then
+              external_repo="Truvideo/truvideo-sdk-ios-camera"
+            elif [ "$key" = "core" ]; then
+              external_repo="Truvideo/truvideo-sdk-ios-core"
+            fi
+
+            if [ -z "$external_repo" ]; then
+              echo "ERROR: unknown external repo for key '$key'"
+              exit 1
+            fi
+
+            echo "== Building XCFramework for $key =="
+            # Build XCFramework (archives for device + simulator, then create XCFramework)
+            if [ "$key" = "cam" ]; then
+              SCHEME="TruvideoSdkCamera"
+              XC_OUTPUT="build/TruvideoSdkCamera.xcframework"
+            else
+              SCHEME="TruvideoSdk"
+              XC_OUTPUT="build/TruvideoSdk.xcframework"
+            fi
+
+            mkdir -p build
+            set -x
+            xcodebuild archive -scheme "$SCHEME" -destination "generic/platform=iOS" -archivePath build/ios.xcarchive SKIP_INSTALL=NO BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+            xcodebuild archive -scheme "$SCHEME" -destination "generic/platform=iOS Simulator" -archivePath build/sim.xcarchive SKIP_INSTALL=NO BUILD_LIBRARY_FOR_DISTRIBUTION=YES
+            xcodebuild -create-xcframework \
+              -framework "build/ios.xcarchive/Products/Library/Frameworks/${SCHEME}.framework" \
+              -framework "build/sim.xcarchive/Products/Library/Frameworks/${SCHEME}.framework" \
+              -output "$XC_OUTPUT"
+            set +x
+
+            if [ ! -d "$XC_OUTPUT" ]; then
+              echo "ERROR: xcframework not found at $XC_OUTPUT"
+              exit 1
+            fi
+
+            echo "== Creating release on external repo: $external_repo and uploading artifacts =="
+            # create a release and upload xcframework zip
+            if [ "$key" = "cam" ]; then
+              ZIP_NAME="TruvideoSdkCamera.xcframework.zip"
+            else
+              ZIP_NAME="TruvideoSdk.xcframework.zip"
+            fi
+            
+            rm -f "/tmp/${ZIP_NAME}"
+            (cd $(dirname "$XC_OUTPUT") && zip -r "/tmp/${ZIP_NAME}" "$(basename "$XC_OUTPUT")")
+
+            # compute checksum (use swift tool if available)
+            
+            echo "Computing checksum..."
+              CHECKSUM=$(swift package compute-checksum "/tmp/${ZIP_NAME}")
+            if [ -z "$CHECKSUM" ]; then
+              echo "ERROR: checksum is empty. ZIP may be invalid."
+              exit 1
+            fi
+
+            echo "Checksum: $CHECKSUM"
+
+            #
+            # --- Publish to Pod Repo (clone, update podspec, push tag & release with podspec + xcframework) ---
+            #
+            if [ "$key" = "cam" ]; then
+              POD_REPO="Truvideo/truvideo-sdk-ios-camera-pod"
+              PODSPEC_NAME="truvideo-sdk-camera.podspec"
+              POD_WORKSPACE="truvideo-sdk-ios-camera-pod"
+              POD_XC_OUTPUT="TruvideoSdkCamera.xcframework"
+            else
+              POD_REPO="Truvideo/truvideo-sdk-ios-core-pod"
+              PODSPEC_NAME="truvideo-sdk-core.podspec"
+              POD_WORKSPACE="truvideo-sdk-ios-core-pod"
+              POD_XC_OUTPUT="TruvideoSdk.xcframework"
+            fi
+
+            echo "== Preparing Pod repo $POD_REPO =="
+            rm -rf /tmp/podrepo || true
+            git clone "https://${GH_TOKEN}@github.com/${POD_REPO}.git" /tmp/podrepo
+            cd /tmp/podrepo
+            git config user.name "truvideo[bot]"
+            git config user.email "truvideo[bot]@users.noreply.github.com"
+
+            # copy xcframework and podspec
+            if [ "$key" = "cam" ]; then
+              rm -rf TruvideoSdkCamera.xcframework || true
+            else
+              rm -rf TruvideoSdk.xcframework || true
+            fi
+
+            cp -R "$GITHUB_WORKSPACE/build/${POD_XC_OUTPUT}" .
+            if [ -f "../${PODSPEC_NAME}" ]; then
+              cp "$GITHUB_WORKSPACE/${POD_WORKSPACE}/${PODSPEC_NAME}" . || true
+            fi
+
+            # update podspec version line (simple sed)
+            sed -i '' "s/spec.version *= *'.*'/spec.version = '$external_prefixless_tag'/" "$PODSPEC_NAME" || true
+
+            # create branch named as version and commit
+            git checkout -b "$external_prefixless_tag" || git checkout "$external_prefixless_tag" || true
+            git add .
+            if ! git diff --cached --quiet; then
+              git commit -m "Release $external_prefixless_tag"
+            fi
+
+            # create and push tag (lightweight) on pod repo
+            git tag "$external_prefixless_tag" || true
+            git push "https://${GH_TOKEN}@github.com/${POD_REPO}.git" "refs/heads/${external_prefixless_tag}:refs/heads/${external_prefixless_tag}" || true
+            git push "https://${GH_TOKEN}@github.com/${POD_REPO}.git" "refs/tags/${external_prefixless_tag}" || {
+              echo "ERROR pushing tag to pod repo ${POD_REPO}"
+              exit 1
+            }
+            
+            #
+            # Try pod trunk push (if using public cocoapods trunk). This requires COCOAPODS_TRUNK_TOKEN be configured.
+            #
+            if [ -n "${COCOAPODS_TRUNK_TOKEN:-}" ]; then
+              echo "Attempting pod trunk push for $PODSPEC_NAME (version $external_prefixless_tag)"
+              MAX_RETRIES=3
+              RETRY_DELAY=30
+              ATTEMPT=1
+              while [ $ATTEMPT -le $MAX_RETRIES ]; do
+                echo "pod trunk push attempt $ATTEMPT"
+                pod trunk push "$PODSPEC_NAME" --allow-warnings && break
+                echo "pod trunk push failed; sleeping $RETRY_DELAY"
+                sleep $RETRY_DELAY
+                ATTEMPT=$((ATTEMPT+1))
+              done
+              if [ $ATTEMPT -gt $MAX_RETRIES ]; then
+                echo "WARNING: pod trunk push did not succeed after $MAX_RETRIES attempts"
+              fi
+            else
+              echo "COCOAPODS_TRUNK_TOKEN not set; skipping pod trunk push (only updated pod repo)."
+            fi
+
+            # Ensure pod repo release exists (create if missing)
+            if gh release view "${external_prefixless_tag}" --repo "${POD_REPO}" >/dev/null 2>&1; then
+              echo "✅ Pod release ${external_prefixless_tag} already exists on ${POD_REPO}."
+            else
+              echo "➡️ Creating pod release ${external_prefixless_tag} on ${POD_REPO}..."
+              if ! gh api -X POST "repos/${POD_REPO}/releases" \
+                -f tag_name="$external_prefixless_tag" \
+                -f name="$external_prefixless_tag" \
+                -f body="$body" \
+                -F prerelease=$prerelease >/dev/null 2>&1; then
+                echo "⚠️ Warning: pod release creation returned non-zero (may already exist or transient error). Continuing to upload attempt."
+              else
+                echo "✅ Pod release created: ${external_prefixless_tag}"
+              fi
+            fi
+
+            #
+            # --- Update SPM repo (Package.swift) ---
+            #
+            if [ "$key" = "cam" ]; then
+              SPM_REPO="Truvideo/truvideo-sdk-ios-camera"
+              PACKAGE_FILE="Package.swift"
+              BINARY_NAME="TruvideoSdkCamera"
+            else
+              SPM_REPO="Truvideo/truvideo-sdk-ios-core"
+              PACKAGE_FILE="Package.swift"
+              BINARY_NAME="TruvideoSdk"
+            fi
+
+            echo "== Updating SPM repo ${SPM_REPO} =="
+            rm -rf /tmp/spm || true
+            git clone "https://${GH_TOKEN}@github.com/${SPM_REPO}.git" /tmp/spm
+            cd /tmp/spm
+            git config user.name "truvideo[bot]"
+            git config user.email "truvideo[bot]@users.noreply.github.com"
+
+            PACKAGE_CONTENT="// swift-tools-version:5.8
+
+            import PackageDescription
+                        
+            let package = Package(
+              name: \"${BINARY_NAME}\",
+              products: [
+                .library(
+                  name: \"${BINARY_NAME}\",
+                  targets: [\"${BINARY_NAME}Targets\"])
+              ],
+              dependencies: [],
+              targets: [
+                .binaryTarget(
+                  name: \"${BINARY_NAME}\",
+                  url: \"https://github.com/${external_repo}/releases/download/${external_prefixless_tag}/${ZIP_NAME}\",
+                  checksum: \"${CHECKSUM}\"
+                ),
+                .target(
+                  name: \"${BINARY_NAME}Targets\",
+                  dependencies: [
+                    .target(name: \"${BINARY_NAME}\")
+                  ],
+                  path: \"Sources\")
+              ]
+            )
+            "
+            echo "$PACKAGE_CONTENT" > "$PACKAGE_FILE"
+            if git show-ref --verify --quiet "refs/heads/$external_prefixless_tag"; then
+              git checkout "$external_prefixless_tag"
+            else
+              git checkout -b "$external_prefixless_tag"
+            fi
+            git add "$PACKAGE_FILE"
+            if ! git diff --cached --quiet; then
+              git commit -m "SPM: Update Package.swift for $external_prefixless_tag"
+            fi
+            git push "https://${GH_TOKEN}@github.com/${SPM_REPO}.git" "refs/heads/${external_prefixless_tag}" || true
+
+            # Ensure release exists (create if missing). tolerate 'already exists' / concurrency.
+            if gh release view "${external_prefixless_tag}" --repo "${SPM_REPO}" >/dev/null 2>&1; then
+              echo "✅ Release '${external_prefixless_tag}' already exists on ${SPM_REPO}."
+            else
+              echo "➡️ Creating release ${external_prefixless_tag} on ${SPM_REPO}..."
+              if ! gh api -X POST "repos/${SPM_REPO}/releases" \
+                -f tag_name="$external_prefixless_tag" \
+                -f name="$external_prefixless_tag" \
+                -f body="$body" \
+                -F prerelease=$prerelease >/dev/null 2>&1; then
+                echo "⚠️ Warning: release creation returned non-zero (may already exist or transient error). Continuing to upload attempt."
+              else
+                echo "✅ Release created: ${external_prefixless_tag}"
+              fi
+            fi
+
+            # Upload artifact (always attempt). Use --clobber to replace existing asset with same name.
+            if gh release upload "${external_prefixless_tag}" "/tmp/${ZIP_NAME}" --repo "${external_repo}" --clobber; then
+              echo "✅ Uploaded ${ZIP_NAME} to ${external_repo} release ${external_prefixless_tag}."
+            else
+              echo "⚠️ WARN: failed to upload ${ZIP_NAME} to ${external_repo} release ${external_prefixless_tag}."
+            fi
+
+            echo "External release created for $external_repo"
+
+            echo "SPM repo updated: ${SPM_REPO}"
+            # restore working directory
+            cd "$ORIGINAL_DIR" || true
+            return 0
+          }
+
+          # iterate over AFF (space separated)
+          IFS=' ' read -r -a AFF_ARR <<< "${AFF}"
+          for s in "${AFF_ARR[@]}"; do
+            IFS=', ' read -r -a CUT_ARR <<< "${cut}"
+            for cut_type in "${CUT_ARR[@]}"; do
+              cut_for "$s" "$cut_type"
+            done
+          done
