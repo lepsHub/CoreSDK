@@ -581,22 +581,7 @@ jobs:
               echo "ERROR pushing tag to pod repo ${POD_REPO}"
               exit 1
             }
-            # Ensure pod repo release exists (create if missing)
-            if gh release view "${external_prefixless_tag}" --repo "${POD_REPO}" >/dev/null 2>&1; then
-              echo "✅ Pod release ${external_prefixless_tag} already exists on ${POD_REPO}."
-            else
-              echo "➡️ Creating pod release ${external_prefixless_tag} on ${POD_REPO}..."
-              if ! gh api -X POST "repos/${POD_REPO}/releases" \
-                -f tag_name="$external_prefixless_tag" \
-                -f name="$external_prefixless_tag" \
-                -f body="$body" \
-                -F prerelease=$prerelease >/dev/null 2>&1; then
-                echo "⚠️ Warning: pod release creation returned non-zero (may already exist or transient error). Continuing to upload attempt."
-              else
-                echo "✅ Pod release created: ${external_prefixless_tag}"
-              fi
-            fi
-
+            
             #
             # Try pod trunk push (if using public cocoapods trunk). This requires COCOAPODS_TRUNK_TOKEN be configured.
             #
@@ -617,6 +602,22 @@ jobs:
               fi
             else
               echo "COCOAPODS_TRUNK_TOKEN not set; skipping pod trunk push (only updated pod repo)."
+            fi
+
+            # Ensure pod repo release exists (create if missing)
+            if gh release view "${external_prefixless_tag}" --repo "${POD_REPO}" >/dev/null 2>&1; then
+              echo "✅ Pod release ${external_prefixless_tag} already exists on ${POD_REPO}."
+            else
+              echo "➡️ Creating pod release ${external_prefixless_tag} on ${POD_REPO}..."
+              if ! gh api -X POST "repos/${POD_REPO}/releases" \
+                -f tag_name="$external_prefixless_tag" \
+                -f name="$external_prefixless_tag" \
+                -f body="$body" \
+                -F prerelease=$prerelease >/dev/null 2>&1; then
+                echo "⚠️ Warning: pod release creation returned non-zero (may already exist or transient error). Continuing to upload attempt."
+              else
+                echo "✅ Pod release created: ${external_prefixless_tag}"
+              fi
             fi
 
             #
