@@ -510,9 +510,7 @@ jobs:
             xcodebuild archive -scheme "$SCHEME" -destination "generic/platform=iOS Simulator" -archivePath build/sim.xcarchive SKIP_INSTALL=NO BUILD_LIBRARY_FOR_DISTRIBUTION=YES
             xcodebuild -create-xcframework \
               -framework "build/ios.xcarchive/Products/Library/Frameworks/${SCHEME}.framework" \
-              -debug-symbols "build/ios.xcarchive/dSYMs/${SCHEME}.framework.dSYM" \
               -framework "build/sim.xcarchive/Products/Library/Frameworks/${SCHEME}.framework" \
-              -debug-symbols "build/sim.xcarchive/dSYMs/${SCHEME}.framework.dSYM" \
               -output "$XC_OUTPUT"
             set +x
 
@@ -525,10 +523,8 @@ jobs:
             # create a release and upload xcframework zip
             if [ "$key" = "cam" ]; then
               ZIP_NAME="CameraSDK.xcframework.zip"
-              ZIP_FILE_NAME="CameraSDK.xcframework"
             else
               ZIP_NAME="CoreSDK.xcframework.zip"
-              ZIP_FILE_NAME="CoreSDK.xcframework"
             fi
             
             rm -f "/tmp/${ZIP_NAME}"
