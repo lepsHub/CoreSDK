@@ -519,21 +519,6 @@ jobs:
               exit 1
             fi
 
-              echo "== Creating external lightweight tag: ${external_prefixless_tag} on ${external_repo} =="
-
-              AUTH_REPO_URL="https://${GH_TOKEN}:x-oauth-basic@github.com/${external_repo}.git"
-              PUSH_REPO_URL="https://${GH_TOKEN}@github.com/${external_repo}.git"
-
-              # Correct authenticated check
-              if git ls-remote --tags "$AUTH_REPO_URL" | grep -q "refs/tags/${external_prefixless_tag}"; then
-                  echo "⚠️  Tag '${external_prefixless_tag}' already exists in ${external_repo}. Skipping tag creation."
-              else
-                  echo "➡️  Tag '${external_prefixless_tag}' does not exist. Creating and pushing..."
-                  git tag "${external_prefixless_tag}"
-                  git push "$PUSH_REPO_URL" "refs/tags/${external_prefixless_tag}"
-                  echo "✅  External tag '${external_prefixless_tag}' pushed successfully."
-              fi
-
             echo "== Creating release on external repo: $external_repo and uploading artifacts =="
             # create a release and upload xcframework zip
             if [ "$key" = "cam" ]; then
@@ -544,31 +529,6 @@ jobs:
             
             rm -f "/tmp/${ZIP_NAME}"
             (cd $(dirname "$XC_OUTPUT") && zip -r "/tmp/${ZIP_NAME}" "$(basename "$XC_OUTPUT")")
-
-            # Ensure release exists (create if missing). tolerate 'already exists' / concurrency.
-            if gh release view "${external_prefixless_tag}" --repo "${external_repo}" >/dev/null 2>&1; then
-              echo "✅ Release '${external_prefixless_tag}' already exists on ${external_repo}."
-            else
-              echo "➡️ Creating release ${external_prefixless_tag} on ${external_repo}..."
-              if ! gh api -X POST "repos/${external_repo}/releases" \
-                -f tag_name="$external_prefixless_tag" \
-                -f name="$external_prefixless_tag" \
-                -f body="$body" \
-                -F prerelease=$prerelease >/dev/null 2>&1; then
-                echo "⚠️ Warning: release creation returned non-zero (may already exist or transient error). Continuing to upload attempt."
-              else
-                echo "✅ Release created: ${external_prefixless_tag}"
-              fi
-            fi
-
-            # Upload artifact (always attempt). Use --clobber to replace existing asset with same name.
-            if gh release upload "${external_prefixless_tag}" "/tmp/${ZIP_NAME}" --repo "${external_repo}" --clobber; then
-              echo "✅ Uploaded ${ZIP_NAME} to ${external_repo} release ${external_prefixless_tag}."
-            else
-              echo "⚠️ WARN: failed to upload ${ZIP_NAME} to ${external_repo} release ${external_prefixless_tag}."
-            fi
-
-            echo "External release created for $external_repo"
 
             #
             # --- Publish to Pod Repo (clone, update podspec, push tag & release with podspec + xcframework) ---
@@ -758,6 +718,32 @@ jobs:
               git commit -m "SPM: Update Package.swift for $external_prefixless_tag"
             fi
             git push "https://${GH_TOKEN}@github.com/${SPM_REPO}.git" "refs/heads/${external_prefixless_tag}" || true
+
+            # Ensure release exists (create if missing). tolerate 'already exists' / concurrency.
+            if gh release view "${external_prefixless_tag}" --repo "${SPM_REPO}" >/dev/null 2>&1; then
+              echo "✅ Release '${external_prefixless_tag}' already exists on ${SPM_REPO}."
+            else
+              echo "➡️ Creating release ${external_prefixless_tag} on ${SPM_REPO}..."
+              if ! gh api -X POST "repos/${SPM_REPO}/releases" \
+                -f tag_name="$external_prefixless_tag" \
+                -f name="$external_prefixless_tag" \
+                -f body="$body" \
+                -F prerelease=$prerelease >/dev/null 2>&1; then
+                echo "⚠️ Warning: release creation returned non-zero (may already exist or transient error). Continuing to upload attempt."
+              else
+                echo "✅ Release created: ${external_prefixless_tag}"
+              fi
+            fi
+
+            # Upload artifact (always attempt). Use --clobber to replace existing asset with same name.
+            if gh release upload "${external_prefixless_tag}" "/tmp/${ZIP_NAME}" --repo "${external_repo}" --clobber; then
+              echo "✅ Uploaded ${ZIP_NAME} to ${external_repo} release ${external_prefixless_tag}."
+            else
+              echo "⚠️ WARN: failed to upload ${ZIP_NAME} to ${external_repo} release ${external_prefixless_tag}."
+            fi
+
+            echo "External release created for $external_repo"
+
             echo "SPM repo updated: ${SPM_REPO}"
             # restore working directory
             cd "$ORIGINAL_DIR" || true
