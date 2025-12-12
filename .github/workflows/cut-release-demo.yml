@@ -519,21 +519,6 @@ jobs:
               exit 1
             fi
 
-              echo "== Creating external lightweight tag: ${external_prefixless_tag} on ${external_repo} =="
-
-              AUTH_REPO_URL="https://${GH_TOKEN}:x-oauth-basic@github.com/${external_repo}.git"
-              PUSH_REPO_URL="https://${GH_TOKEN}@github.com/${external_repo}.git"
-
-              # Correct authenticated check
-              if git ls-remote --tags "$AUTH_REPO_URL" | grep -q "refs/tags/${external_prefixless_tag}"; then
-                  echo "⚠️  Tag '${external_prefixless_tag}' already exists in ${external_repo}. Skipping tag creation."
-              else
-                  echo "➡️  Tag '${external_prefixless_tag}' does not exist. Creating and pushing..."
-                  git tag "${external_prefixless_tag}"
-                  git push "$PUSH_REPO_URL" "refs/tags/${external_prefixless_tag}"
-                  echo "✅  External tag '${external_prefixless_tag}' pushed successfully."
-              fi
-
             echo "== Creating release on external repo: $external_repo and uploading artifacts =="
             # create a release and upload xcframework zip
             if [ "$key" = "cam" ]; then
@@ -758,6 +743,22 @@ jobs:
               git commit -m "SPM: Update Package.swift for $external_prefixless_tag"
             fi
             git push "https://${GH_TOKEN}@github.com/${SPM_REPO}.git" "refs/heads/${external_prefixless_tag}" || true
+
+            echo "== Creating external lightweight tag: ${external_prefixless_tag} on ${SPM_REPO} =="
+
+              AUTH_REPO_URL="https://${GH_TOKEN}:x-oauth-basic@github.com/${SPM_REPO}.git"
+              PUSH_REPO_URL="https://${GH_TOKEN}@github.com/${SPM_REPO}.git"
+
+              # Correct authenticated check
+              if git ls-remote --tags "$AUTH_REPO_URL" | grep -q "refs/tags/${external_prefixless_tag}"; then
+                  echo "⚠️  Tag '${external_prefixless_tag}' already exists in ${SPM_REPO}. Skipping tag creation."
+              else
+                  echo "➡️  Tag '${external_prefixless_tag}' does not exist. Creating and pushing..."
+                  git tag "${external_prefixless_tag}"
+                  git push "$PUSH_REPO_URL" "refs/tags/${external_prefixless_tag}"
+                  echo "✅  External tag '${external_prefixless_tag}' pushed successfully."
+              fi
+
             echo "SPM repo updated: ${SPM_REPO}"
             # restore working directory
             cd "$ORIGINAL_DIR" || true
