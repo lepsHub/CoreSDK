@@ -62,6 +62,8 @@ jobs:
         run: |
           brew update >/dev/null
           brew install jq xcodegen >/dev/null || true
+          brew install swiftlint
+          brew install swiftformat
           git config user.name  "lepsHub"
           git config user.email "backup.user.leps@outlook.com"
 

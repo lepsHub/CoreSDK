@@ -1,0 +1,15 @@
+CoreSDK:
+  - Libraries/External/Extended/App/Sources/**
+  - Libraries/External/Extended/App/Testing/**
+
+AuthKit:
+  - Sources/AuthKit/**
+  - Tests/AuthKitTests/**
+
+PaymentsUI:
+  - Sources/PaymentsUI/**
+  - Tests/PaymentsUITests/**
+
+AnalyticsSDK:
+  - Sources/AnalyticsSDK/**
+  - Tests/AnalyticsSDKTests/**
