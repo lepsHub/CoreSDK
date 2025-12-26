@@ -476,6 +476,9 @@ jobs:
               echo "➡️ Creating internal tag '${internal_tag}' in monorepo..."
               git tag "${internal_tag}"
               git push origin "refs/tags/${internal_tag}"
+              git checkout "${internal_tag}"
+              echo "Checked out tag ${internal_tag}"
+              echo "Building from commit $(git rev-parse HEAD) (tag $internal_tag)"
               echo "✅ Internal monorepo tag '${internal_tag}' pushed."
             fi
 
