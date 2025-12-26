@@ -7,8 +7,8 @@
 
 import Foundation
 
-public func greet(name: String) -> String {
-    return "Hello, \(name)"
+public class TruvideoSdkCameraConfiguration: NSObject {
+    let name = "TruvideoSdkCameraConfiguration"
 }
 
 
