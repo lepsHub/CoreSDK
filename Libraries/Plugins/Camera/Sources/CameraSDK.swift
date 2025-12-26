@@ -10,5 +10,3 @@ import Foundation
 public class TruvideoSdkCameraConfiguration: NSObject {
     let name = "TruvideoSdkCameraConfiguration"
 }
-
-
