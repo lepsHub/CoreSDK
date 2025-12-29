@@ -329,21 +329,46 @@ jobs:
           SWIFT
           }
 
+          clean_changelog_subject () {
+          local s="$1"
+
+          # 1. Remove conventional commit prefix (feat:, fix(scope):, etc.)
+          s="$(echo "$s" | sed -E 's/^(feat|fix|perf|refactor|docs|test|build|ci|chore)(\([^)]+\))?(!)?: *//')"
+
+          # 2. Remove internal ticket IDs (SDK-1234:)
+          s="$(echo "$s" | sed -E 's/^[A-Z]+-[0-9]+: *//')"
+
+          # 3. Remove PR references (#123)
+          s="$(echo "$s" | sed -E 's/ *\(#?[0-9]+\)$//')"
+
+          # 4. Trim spaces
+          s="$(echo "$s" | sed -E 's/^ +| +$//g')"
+
+          # 5. Capitalize first letter (optional but recommended)
+          s="$(echo "$s" | sed -E 's/^./\U&/')"
+
+          echo "$s"
+          }
+
           gen_changelog_md () {
             local range="$1" path="$2"
             local feats="" fixes="" perfs="" refacs="" docs="" tests="" build="" ci="" chores="" breaks=""
             while IFS= read -r s; do
               [ -z "$s" ] && continue
-              [[ "$s" =~ BREAKING\ CHANGE|!\: ]] && breaks="${breaks}"$'\n- '"$s"
-              if   [[ "$s" =~ ^feat(\(|:|\!) ]];      then feats="${feats}"$'\n- '"$s"
-              elif [[ "$s" =~ ^fix(\(|:|\!) ]];       then fixes="${fixes}"$'\n- '"$s"
-              elif [[ "$s" =~ ^perf(\(|:|\!) ]];      then perfs="${perfs}"$'\n- '"$s"
-              elif [[ "$s" =~ ^refactor(\(|:|\!) ]];  then refacs="${refacs}"$'\n- '"$s"
-              elif [[ "$s" =~ ^docs(\(|:|\!) ]];      then docs="${docs}"$'\n- '"$s"
-              elif [[ "$s" =~ ^test(\(|:|\!) ]];      then tests="${tests}"$'\n- '"$s"
-              elif [[ "$s" =~ ^build(\(|:|\!) ]];     then build="${build}"$'\n- '"$s"
-              elif [[ "$s" =~ ^ci(\(|:|\!) ]];        then ci="${ci}"$'\n- '"$s"
-              elif [[ "$s" =~ ^chore(\(|:|\!) ]];     then chores="${chores}"$'\n- '"$s"
+
+              clean="$(clean_changelog_subject "$s")"
+
+              [[ "$s" =~ BREAKING\ CHANGE|!\: ]] && breaks="${breaks}"$'\n- '"$clean"
+
+              if   [[ "$s" =~ ^feat(\(|:|\!) ]];      then feats="${feats}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^fix(\(|:|\!) ]];       then fixes="${fixes}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^perf(\(|:|\!) ]];      then perfs="${perfs}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^refactor(\(|:|\!) ]];  then refacs="${refacs}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^docs(\(|:|\!) ]];      then docs="${docs}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^test(\(|:|\!) ]];      then tests="${tests}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^build(\(|:|\!) ]];     then build="${build}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^ci(\(|:|\!) ]];        then ci="${ci}"$'\n- '"$clean"
+              elif [[ "$s" =~ ^chore(\(|:|\!) ]];     then chores="${chores}"$'\n- '"$clean"
               fi
             done < <(git log --pretty=format:'%s' $range -- "$path" || true)
             {
