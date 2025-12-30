@@ -486,7 +486,14 @@ jobs:
             | tail -n1
             )
 
-            since_ref=""; [ -n "$last_base_version" ] && since_ref="$(git rev-list -n1 "$last_base_version")"
+            last_base_tag=$(
+              git tag -l "${prefix}-${last_base_version}" \
+                "${prefix}-${last_base_version}-*" \
+              | sort -V \
+              | head -n1
+            )
+
+            since_ref=""; [ -n "$last_base_tag" ] && since_ref="$(git rev-list -n1 "$last_base_tag")"
             range="${since_ref:+${since_ref}..}HEAD"
 
             base_ver="$(bump_from_commits "$last_base_version" "${range:-HEAD}")"
